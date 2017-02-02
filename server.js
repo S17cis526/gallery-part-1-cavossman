@@ -5,59 +5,92 @@
  * This file defines the server for a
  * simple photo gallery web app.
  */
+ 
+var http = require("http");
+var fs = require("fs");
+var port = 2300; // 80 is usual
 
-var http = require('http');
-var fs = require('fs');
-var port = 2300;  // 80 is standard port for http
+var chess = fs.readFileSync("images/chess.jpg");
+var fern = fs.readFileSync("images/fern.jpg");
+var stylesheet = fs.readFileSync("gallery.css");
 
-function serveImage(filename, req, res) {
-  var body = fs.readFile('images/' + filename, function(err, body) {
-    if(err) {
-      console.error(err); // adds error to error log
-      res.statusCode = 500;
-      res.statusMessage = "Server error";
-      res.end("Silly me!"); // can add a special html page with res.body();
-      return;
-    }
-    res.setHeader("Content-Type", "image/jpg");
-    res.end(body);
-    return;
-  });
+function getImageNames(callback) {
+    fs.readdir("images/",(err, files) => {
+	if(err)
+	{
+	    callback(err, undefined);
+	}
+	else
+	{
+	    callback(undefined, files);
+	}
+    });
 }
 
-var server = http.createServer(function(req, res) {
-  // req - request
-  // res - response
-  switch(req.url) {
-    case "/chess":
-    case "/chess/":
-    case "/chess.jpg":
-    case "/chess.jpg/":
-      serveImage('chess.jpg', req, res);
-      break;
-    case "/fern":
-    case "/fern/":
-    case "/fern.jpg":
-    case "/fern.jpg/":
-      serveImage('fern.jpg', req, res);
-      break;
-    case "/bubble":
-    case "/bubble/":
-    case "/bubble.jpg":
-    case "/bubble.jpg/":
-      serveImage('bubble.jpg', req, res);
-      break;
-    case "/ace":
-      break;
-    case "mobile":
-      break;
+function getImageTags(files) {
+    return files.map(function(filename) {
+	return "<img src='"+filename+"' alt='"+filename+"'>";
+    });
+}
+
+function buildGallery(imageNames) {
+    var html = "<!doctype html>";
+    html += "<head>";
+    html += "<title>Gallery</title>";
+    html += "<link href='gallery.css' rel='stylesheet' type='text/css'>";
+    html += "</head>";
+    html += "<body>";
+    html += "<h1>Gallery</h1>";
+    html += getImageTags(imageNames).join("");
+    html += "<h1>Hello.</h1>Time is "+Date.now();
+    html += "</body>";
+    return html;
+}
+
+function serveGallery(req, res) {
+    getImageNames(function(err, imageNames) {
+	if(err) {
+	    console.error(err);
+	    res.statusCode=500;
+	    res.statusMessage= "Server broke :(";
+	    res.end("Server broke :(");
+	    return;
+	}
+	res.setHeader("Content-Type", "text/html");
+	res.end(buildGallery(imageNames));
+    });
+}
+
+function serveImage(filename, req, res) {
+    fs.readFile("images"+filename, (err, body) => {
+	if(err) {
+	    console.error(err);
+	    res.statusCode = 404;
+	    res.statusMessage = "Resource Not Found";
+	    res.end("Yall 404'd - ain't nothin' here");
+	    return;
+	}
+	console.log("User opened "+filename+" at "+Date.now());
+	res.setHeader("Content-Type", "image/jpeg");
+	res.end(body);
+    });
+}
+
+var server = http.createServer((req, res) => {
+    switch(req.url) {
+    case "/gallery.css":
+	res.setHeader("Content-Type", "text/css");
+	res.end(stylesheet);
+	break;
+    case "/":
+    case "/gallery":
+	serveGallery(req, res);
+	break;
     default:
-      res.statusCode = 404;
-      res.statusMessage = "Not found";
-      res.end();
-  }
+	serveImage(req.url, req, res);
+    }
 });
 
-server.listen(port, function(){
-  console.log("Listening on port: " + port)
+server.listen(port, () => {
+    console.log("Listening on Port "+port);
 });
