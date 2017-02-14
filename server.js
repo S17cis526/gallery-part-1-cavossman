@@ -1,159 +1,142 @@
 "use strict";
 
-// node server.js - to run server
-// localhost:2300/   - In browser to go to website.
-
-
 /**
  * server.js
  * This file defines the server for a
  * simple photo gallery web app.
  */
-
-var http = require("http");
+var http = require('http');
 var url = require('url');
-var fs = require("fs");
-var port = 1758; // 80 is usual
-var defaultConfig = {
-  title: "Gallery"
-};
+var fs = require('fs');
+var port = 30023;
+var config = JSON.parse(fs.readFileSync('config.json'));
+var multipart = require('./multipart');
 
-var config = JSON.parse(fs.readFileSync('config.json') || defaultConfig);
-var stylesheet = fs.readFileSync("gallery.css");
+var stylesheet = fs.readFileSync('gallery.css');
 
-var imageNames = ['ace.jpg', 'bubble.jpg', 'chess.jpg', 'fern.jpg', 'mobile.jpg'];
+var imageNames = ['ace', 'bubble', 'chess', 'fern', 'mobile'];
 
-function getImageNames(callback) {
-  fs.readdir("images/", function(err, fileNames){
-  	if(err)
-  	{
-  	    callback(err, undefined);
-  	}
-  	else
-  	{
-  	    callback(undefined, fileNames);
-  	}
-  });
+
+function getImageNames(callback){
+	fs.readdir('images/', function(err, fileNames){
+		if(err) callback(err, undefined);
+		else callback(false, fileNames);
+	});
 }
 
-function getImageTags(files) {
-  return files.map(function(filename) {
-	return "<img src='"+filename+"' alt='"+filename+"'>";
-  });
+function imageNamesToTags(fileNames){
+	return fileNames.map(function(fileName){
+		return `<img src="${fileName}" alt="${fileName}">`;
+	});
 }
 
-function buildGallery(imageNames) {
-  var html = "<!doctype html>";
-  html += "<head>";
-  html += "<title>" + config.title + "</title>";
-  html += "<link href='gallery.css' rel='stylesheet' type='text/css'>";
-  html += "</head>";
-  html += "<body>";
-  html += "<h1>" + config.title + "</h1>";
-	html += '<form action = "">';
-	html += '	<input type="text" name ="title">';
-	html += '	<input type ="submit" value ="Change Gallery Title">';
-	html += '</form>';
-  html += imageNamesToTags(imageNames).join('');
-  html += '<form action="" method="POST" enctype="multipart/form-data">'
-  html += ' <input type="file" name="image">'
-  html += ' <input type="submit" value="Upload Image">'
-  html += '</form>'
-  html += "<h1>Hello.</h1>Time is: " + Date.now();
-  html += "</body>";
-  return html;
+function serveImage(filename, req, res){
+	fs.readFile('images/' + filename, function(err, body){
+		if(err){
+			console.error(err);
+			res.statusCode = 404;
+			res.statusMessage = "Resource not found";
+			res.end();
+			return;
+		}
+	res.setHeader("Content-Type", "image/jpeg");
+	res.end(body);
+	});
 }
 
-function serveGallery(req, res) {
-  getImageNames(function(err, imageNames) {
-	if(err) {
-    console.error(err);
-    res.statusCode=500;
-    res.statusMessage= "RIP";
-    res.end("RIP");
-    return;
-	}
-	res.setHeader("Content-Type", "text/html");
-	res.end(buildGallery(imageNames));
-    });
+function buildGallery(imageTags){
+
+		var html = '<!doctype HTML><head><title>' + config.title + '</title>';
+			html += '<link href="gallery.css" rel="stylesheet" type="text/css"></head>';
+			html += "<body>";
+			html += '<h1>' + config.title +'</h1>';
+			html += '<form action="">';
+			html += '<input type = "text" name = "title">';
+			html += '<input type = "submit" value="Change Gallery Title">';
+			html += '</form>;'
+			html += imageNamesToTags(imageTags).join('');
+			html += '<form action="" method="POST" enctype="multipart/form-data">';
+			html += '<input type="file" name="image">';
+			html += '<input type="submit" value="Upload Image">';
+			html +='</form>'
+			html += "<h1>Hello.</h1>The time is " + Date.now();
+			html += "</body>";
+		return html;
+
 }
 
-function serveImage(filename, req, res) {
-  fs.readFile("images"+filename, function(err, body){
-  	if(err) {
-      console.error(err);
-      res.statusCode = 404;
-      res.statusMessage = "Resource Not Found";
-      res.end("404");
-      return;
-  	}
-  	console.log("User opened " + filename + " at "+ Date.now());
-  	res.setHeader("Content-Type", "image/jpeg");
-  	res.end(body);
-  });
+function serveGallery(req, res){
+	getImageNames(function (err, imageNames){
+		if (err){
+			console.error(err);
+			res.statusCode = 500;
+			res.statusMessage = 'Server error';
+			res.end();
+			return;
+		}
+			res.setHeader('Content-Type', 'text/html');
+			res.end(buildGallery(imageNames));
+		});
+
+
 }
+
 
 function uploadImage(req, res) {
-  var body = '';
-  req.on('error', function(){
-    res.statusCode = 500;
-    res.end();
-  });
-  req.on('data', function(data){
-    body += data;
-  });
-  red.on('end', function() {
-    fs.writeFile('filename', body, function(err){
-      if(err){
-        console.log(err);
+  multipart(req, res, function(req, res) {
+    console.log('filename', req.body.filename)
+    if(!req.body.image.filename) {
+      console.error("No file in upload");
+      res.statusCode = 400;
+      res.statusMessage = "No file specified"
+      res.end("No file specified");
+      return;
+    }
+    fs.writeFile('images/' + req.body.image.filename, req.body.image.data, function(err){
+      if(err) {
+        console.error(err);
         res.statusCode = 500;
-        res.end();
+        res.statusMessage = "Server Error";
+        res.end("Server Error");
         return;
       }
-      serverGallery(req, res);
-    })
+      serveGallery(req, res);
+    });
   });
 }
 
-
-
-var server = http.createServer((req, res) => {
-	// at most, the url should have two parts -
-	// a resource and a querystring seperated by a ?
-
-	/* REGEX */
-
+function handleRequest(req, res) {
+  // at most, the url should have two parts -
+  // a resource and a querystring separated by a ?
   var urlParts = url.parse(req.url);
 
-  // Test REGEX for JS at scriptular.com
-	if(urlParts.query){
-		var matches = /title=(.+)($|&)/.exec(urlParts.query);
-    if(matches && matches[1]) {
+  if(urlParts.query){
+    var matches = /title=(.+)($|&)/.exec(urlParts.query);
+    if(matches && matches[1]){
       config.title = decodeURIComponent(matches[1]);
-      fs.writeFile('config.json', JSON.stringify(config));  //save the title in a file so when we restart the server it stays put.
+      fs.writeFile('config.json', JSON.stringify(config));
     }
   }
 
-	/* END REGEX */
-    switch(urlParts.pathname) {
-      case "/gallery.css":
-	      res.setHeader("Content-Type", "text/css");
-	      res.end(stylesheet);
-    	break;
-      case "/":
-      case "/gallery":
-      if (){
+  switch(urlParts.pathname) {
+    case '/':
+    case '/gallery':
+      if(req.method == 'GET') {
         serveGallery(req, res);
+      } else if(req.method == 'POST') {
+        uploadImage(req, res);
       }
-      else {
-        uploadImage(req, res); //unifinished
-      }
-	    break;
-      default:
-	      serveImage(req.url, req, res);
-    }
-});
+      break;
+    case '/gallery.css':
+      res.setHeader('Content-Type', 'text/css');
+      res.end(stylesheet);
+      break;
+    default:
+      serveImage(req.url, req, res);
+  }
+}
 
-server.listen(port, () => {
-    console.log("Listening on Port "+port);
+var server = http.createServer(handleRequest);
+server.listen(port, function(){
+  console.log("Server is listening on port ", port);
 });
