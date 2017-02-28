@@ -1,0 +1,27 @@
+[
+	{
+		"title":"charzard",
+		"image":"images/charzard.jpeg",
+		"description":"Charzard Pokemon Card."
+	},
+	{
+		"title":"jirachi",
+		"image":"images/jirachi.jpeg",
+		"description":"Jirachi Pokemon Card"
+	},
+	{
+		"title":"mixtape",
+		"image":"images/mixtape.jpeg",
+		"description":"Mixtape Pokemon Card"
+	},
+	{
+		"title":"reshiram",
+		"image":"images/reshiram.png",
+		"description":"Reshiram Pokemon Card"
+	},
+	{
+		"title":"squirtle",
+		"image":"images/squirtle.png",
+		"description":"Squirtle Pokemon Card"
+	}
+]
