@@ -28,6 +28,8 @@ template.loadDir('templates');
 /* load template for new uploads. */
 var itemTemplate = JSON.parse(fs.readFileSync('./catalog/charzard.json'));
 
+var collection = JSON.parse(fs.readFileSync('collection.json'));
+
 /** @function getImageNames
  * Retrieves the filenames for all images in the
  * /images directory and supplies them to the callback.
@@ -48,14 +50,36 @@ function getImageNames(callback) {
  * @param {string[]} filenames - the image filenames
  * @return {string[]} an array of HTML img tags
  */
-function imageNamesToTags(fileNames) {
+
+// ORIGINAL imageNamesToTags
+/*function imageNamesToTags(fileNames) {
   return fileNames.map(function(fileName) {
 	if (fileName == "details.html"){
 		return '';
 	}
-    return `<img src="${fileName}" alt="${fileName}">`;
+    return `<img class="thumbnail" src="${fileName}" alt="${fileName}">`;
   });
+}*/
+
+
+// NOTETOSELF:
+// Could Improve if I could use individual json files that I make but
+// couldn't implement the link to another page from each image in time.
+
+// UPDATED imageNamesToTags
+function imageNamesToTags(fileNames) {
+  var tags = '';
+  for(var i = 0; i < collection.length; i++) {
+    tags += `<a href="#"><img class="thumbnail" src="` + collection[i].image +
+            `" data-title="` + collection[i].title +
+            `" data-desc="`  + collection[i].description +
+            `" alt="`        + collection[i].title +
+            `" onclick="showImage(` + i + `)"` +
+            `  style="cursor:pointer"></a>`;
+  }
+  return tags;
 }
+
 
 /**
  * @function buildGallery
@@ -67,7 +91,7 @@ function imageNamesToTags(fileNames) {
 function buildGallery(imageTags) {
   return template.render('gallery.html', {
     title: config.title,
-    imageTags: imageNamesToTags(imageTags).join('')
+    imageTags: imageNamesToTags(imageTags) // imageNamesToTags(imageTags).join('') - original
   });
 }
 
@@ -136,13 +160,22 @@ function uploadImage(req, res) {
         res.end("Server Error");
         return;
       }
-	  
+
+    /* Creates individual json file for each entry. */
 	  itemTemplate.title = req.body.title;
-	  itemTemplate.path = '/images/' + req.body.image.filename;
-	  itemTemplate.description = req.body.description; 
+	  itemTemplate.image = req.body.image.filename;
+	  itemTemplate.description = req.body.description;
 	  var data = JSON.stringify(itemTemplate);
 	  fs.writeFile('./catalog/' + itemTemplate.title + '.json', data);
       serveGallery(req, res);
+
+      /* Adds each entry to a list (collection) of json objects. */
+      collection.push({
+          title: req.body.title,
+          image: req.body.image.filename,
+          description: req.body.description
+      });
+        fs.writeFile('collection.json', JSON.stringify(collection, null, "\t"));
     });
   });
 }
